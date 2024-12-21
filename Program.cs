@@ -13,9 +13,6 @@ namespace Hoi4UnitHistoryGenerator
         [GeneratedRegex("^([A-Z]{3})\\.xlsx")]
         private static partial Regex RegTemplateFileName();
 
-        [GeneratedRegex("division_template_\\S+")]
-        private static partial Regex RegDivisionTemplate();
-
         static void Main()
         {
             string[] files = Directory.GetFiles("templates", "*.xlsx");
@@ -34,7 +31,7 @@ namespace Hoi4UnitHistoryGenerator
                     }
                     catch (Exception ex)
                     {
-                        Console.Out.WriteLine($"Fail: {ex.Message}");
+                        Console.Out.WriteLine($"Fail: {ex}");
                     }
                 }
             }
@@ -107,13 +104,9 @@ namespace Hoi4UnitHistoryGenerator
                 {
                     airBases = LoadAirBases(sheetData, sharedStringPart, directory);
                 }
-                else if (RegDivisionTemplate().IsMatch(name!))
+                else if ("division_templates" == name)
                 {
-                    DivisionTemplate? divisionTemplate = LoadDivisionTemplate(sheetData, sharedStringPart, directory);
-                    if (divisionTemplate is not null)
-                    {
-                        divisionTemplates.Add(divisionTemplate);
-                    }
+                    divisionTemplates = LoadDivisionTemplates(sheetData, sharedStringPart, directory);
                 }
             }
 
@@ -292,25 +285,50 @@ namespace Hoi4UnitHistoryGenerator
             return results;
         }
 
-        private static DivisionTemplate? LoadDivisionTemplate(SheetData sheet, SharedStringTablePart? sharedStringPart, TDir directory)
+        private static List<DivisionTemplate> LoadDivisionTemplates(SheetData sheet, SharedStringTablePart? sharedStringPart, TDir directory)
         {
-            List<Row> rows = [.. sheet.Elements<Row>()];
-            if (rows.Count == 0)
+            var iterator = sheet.Elements<Row>().GetEnumerator();
+
+            List<DivisionTemplate> results = [];
+            DivisionTemplate? divisionTemplate;
+            while ((divisionTemplate = LoadOneDivisionTemplate(iterator, sharedStringPart, directory)) is not null)
+            {
+                results.Add(divisionTemplate);
+            }
+            return results;
+        }
+
+        private static DivisionTemplate? LoadOneDivisionTemplate(IEnumerator<Row> iterator, SharedStringTablePart? sharedStringPart, TDir directory)
+        {
+            if (!iterator.MoveNext())
             {
                 return null;
             }
-
-            DivisionTemplate divisionTemplate = new();
-
-            List<string> headerNames = ConvertRowToCells(rows[0], sharedStringPart, 0);
-
+            Row headerRow = iterator.Current;
+            var rawHeaders = ConvertRowToCells(headerRow, sharedStringPart, 0);
+            if (rawHeaders.Count == 0)
+            {
+                return null;
+            }
+            
             List<List<string>> columns = [];
 
-            for (int i = 1; i < rows.Count; i++)
+            while (iterator.MoveNext())
             {
-                List<string> cellValues = ConvertRowToCells(rows[i], sharedStringPart, headerNames.Count);
+                Row row = iterator.Current;
+                var cellValues = ConvertRowToCells(row, sharedStringPart, rawHeaders.Count);
+                if ("!" == cellValues.FirstOrDefault())
+                {
+                    break;
+                }
+
                 for (int j = 0; j < cellValues.Count; j++)
                 {
+                    if (j >= rawHeaders.Count)
+                    {
+                        continue;
+                    }
+
                     List<string> column;
                     if (columns.Count <= j)
                     {
@@ -326,9 +344,10 @@ namespace Hoi4UnitHistoryGenerator
                 }
             }
 
+            DivisionTemplate divisionTemplate = new();
             for (int i = 0; i < columns.Count; i++)
             {
-                string rawHeader = headerNames[i];
+                string rawHeader = rawHeaders[i];
                 string header = directory.GetValueOrDefault("column_name", []).GetValueOrDefault(rawHeader, rawHeader);
                 if (header == "Support")
                 {
@@ -394,7 +413,6 @@ namespace Hoi4UnitHistoryGenerator
                 }
             }
 
-
             return divisionTemplate;
         }
 
@@ -425,6 +443,11 @@ namespace Hoi4UnitHistoryGenerator
                 List<string> cellValues = ConvertRowToCells(rows[i], sharedStringPart, properties.Count);
                 for (int j = 0; j < cellValues.Count; j++)
                 {
+                    if (cellValues[j].Length == 0)
+                    {
+                        continue;
+                    }
+
                     var property = properties[j];
                     property?.SetValue(divisionEntity, Convert.ChangeType(cellValues[j], property.PropertyType));
                 }
