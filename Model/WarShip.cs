@@ -1,9 +1,13 @@
-﻿namespace Hoi4UnitHistoryGenerator.Model
+﻿using Hoi4UnitHistoryGenerator.Attributes;
+
+namespace Hoi4UnitHistoryGenerator.Model
 {
     class WarShip
     {
         public string Name { get; set; } = "";
         public string Definition { get; set; } = "";
+
+        [LocalisationReference("EquipmentVariant.Type")]
         public string Equipment { get; set; } = "";
         public string VersionName { get; set; } = "";
 

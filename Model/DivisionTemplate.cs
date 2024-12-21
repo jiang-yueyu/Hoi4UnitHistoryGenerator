@@ -2,19 +2,25 @@
 {
     class DivisionTemplate
     {
+        public int ID { get; set; }
         public List<List<string>> Support { get; set; } = [];
         public List<List<string>> Regiments { get; set; } = [];
         public string Name { get; set; } = "";
         public string DivisionNameGroup { get; set; } = "";
         public int IsLocked { get; set; }
 
-        public void Print(TextWriter writer)
+        public void Print(TextWriter writer, string owner)
         {
             writer.WriteLine("division_template = {");
 
             writer.WriteLine($"\tname = \"{Name}\"");
 
-            writer.WriteLine($"\tdivision_names_group = {DivisionNameGroup}");
+            if (DivisionNameGroup.Length > 0)
+            {
+                writer.Write("\tdivision_names_group = ");
+                PrintGeneratedNameGroup(writer, owner);
+                writer.WriteLine();
+            }
 
             writer.WriteLine("\tregiments = {");
             {
@@ -54,6 +60,11 @@
             }
 
             writer.WriteLine("}");
+        }
+
+        public void PrintGeneratedNameGroup(TextWriter textWriter, string owner)
+        {
+            textWriter.Write($"{owner}_GENERATED_NAMEGROUP_{ID}");
         }
     }
 }
