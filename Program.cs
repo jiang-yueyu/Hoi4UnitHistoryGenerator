@@ -196,7 +196,7 @@ namespace Hoi4UnitHistoryGenerator
                         divisionTemplate.PrintGeneratedNameGroup(textWriter, countryTag);
                         textWriter.WriteLine(" = {");
 
-                        textWriter.WriteLine($"\tname = \"{divisionTemplate.DivisionNameGroup}\"");
+                        textWriter.WriteLine($"\tname = \"{divisionTemplate.Name}\"");
                         textWriter.WriteLine($"\tfor_countries = {{ {countryTag} }}");
                         textWriter.WriteLine("\tcan_use = { always = yes }");
                         textWriter.WriteLine($"\tfallback_name = \"{divisionTemplate.DivisionNameGroup}\"");
