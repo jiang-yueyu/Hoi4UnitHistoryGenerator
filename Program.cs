@@ -707,6 +707,7 @@ namespace Hoi4UnitHistoryGenerator
                     {
                         fleet = new();
                         fleetList.Add(fleet);
+                        fleetMap[fleetName] = fleet;
                     }
                     else
                     {
