@@ -2,6 +2,7 @@
 using DocumentFormat.OpenXml.Spreadsheet;
 using Hoi4UnitHistoryGenerator.Attributes;
 using Hoi4UnitHistoryGenerator.Model;
+using Hoi4UnitHistoryGenerator.Excel;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
@@ -73,16 +74,17 @@ namespace Hoi4UnitHistoryGenerator
 
         private static Dictionary<string, string> LoadDictionary(SheetData sheet, SharedStringTablePart? sharedStringPart)
         {
-            List<Row> rows = [.. sheet.Elements<Row>()];
-            if (rows.Count == 0)
+            var rowIterator = ExcelUtils.RowIterator(sheet, sharedStringPart);
+            if (!rowIterator.MoveNext())
             {
                 return [];
             }
 
+            List<string> headers = rowIterator.Current;
+
             int iName = -1;
             int iId = -1;
 
-            List<string> headers = ConvertRowToCells(rows[0], sharedStringPart, 0);
             for (int i = 0; i < headers.Count; i++)
             {
                 string header = headers[i];
@@ -120,10 +122,10 @@ namespace Hoi4UnitHistoryGenerator
 
             Dictionary<string, string> results = [];
 
-            for (int i = 1; i < rows.Count; i++)
+            while (rowIterator.MoveNext())
             {
-                List<string> cellValues = ConvertRowToCells(rows[i], sharedStringPart, headers.Count);
-
+                List<string> cellValues = rowIterator.Current;
+                
                 string name = "";
                 string id = "";
 
@@ -327,7 +329,7 @@ namespace Hoi4UnitHistoryGenerator
                 return null;
             }
             Row headerRow = iterator.Current;
-            var rawHeaders = ConvertRowToCells(headerRow, sharedStringPart, 0);
+            var rawHeaders = ExcelUtils.ReadRow(headerRow, sharedStringPart, 0);
             if (rawHeaders.Count == 0)
             {
                 return null;
@@ -338,7 +340,7 @@ namespace Hoi4UnitHistoryGenerator
             while (iterator.MoveNext())
             {
                 Row row = iterator.Current;
-                var cellValues = ConvertRowToCells(row, sharedStringPart, rawHeaders.Count);
+                var cellValues = ExcelUtils.ReadRow(row, sharedStringPart, rawHeaders.Count);
                 if ("!" == cellValues.FirstOrDefault())
                 {
                     break;
@@ -440,8 +442,8 @@ namespace Hoi4UnitHistoryGenerator
 
         private static List<DivisionEntity> LoadDivisionEntities(SheetData sheet, SharedStringTablePart? sharedStringPart, TDir directory)
         {
-            List<Row> rows = [.. sheet.Elements<Row>()];
-            if (rows.Count == 0)
+            var rowIterator = ExcelUtils.RowIterator(sheet, sharedStringPart);
+            if (!rowIterator.MoveNext())
             {
                 return [];
             }
@@ -449,7 +451,7 @@ namespace Hoi4UnitHistoryGenerator
             List<PropertyInfo?> properties = [];
             List<string?> propertyLocalisationKeys = [];
             {
-                List<string> headerNames = ConvertRowToCells(rows[0], sharedStringPart, 0);
+                List<string> headerNames = rowIterator.Current;
                 foreach (var rawHeader in headerNames)
                 {
                     string header = directory.GetValueOrDefault("column_name", []).GetValueOrDefault(rawHeader, rawHeader);
@@ -463,13 +465,11 @@ namespace Hoi4UnitHistoryGenerator
                 }
             }
 
-            List<DivisionEntity> results = new(rows.Count - 1);
-
-            for (int i = 1; i < rows.Count; i++)
+            List<DivisionEntity> results = [];
+            while (rowIterator.MoveNext())
             {
                 DivisionEntity divisionEntity = new();
-
-                List<string> cellValues = ConvertRowToCells(rows[i], sharedStringPart, properties.Count);
+                List<string> cellValues = rowIterator.Current;
                 for (int j = 0; j < cellValues.Count; j++)
                 {
                     if (cellValues[j].Length == 0)
@@ -493,8 +493,8 @@ namespace Hoi4UnitHistoryGenerator
 
         private static List<EquipmentVariant> LoadEquipmentVariants(SheetData sheet, SharedStringTablePart? sharedStringPart, TDir directory)
         {
-            List<Row> rows = [.. sheet.Elements<Row>()];
-            if (rows.Count == 0)
+            var rowIterator = ExcelUtils.RowIterator(sheet, sharedStringPart);
+            if (!rowIterator.MoveNext())
             {
                 return [];
             }
@@ -504,7 +504,7 @@ namespace Hoi4UnitHistoryGenerator
             List<string> headers = [];
             int iVariantName = -1;
             {
-                List<string> headerNames = ConvertRowToCells(rows[0], sharedStringPart, 0);
+                List<string> headerNames = rowIterator.Current;
                 for (int i = 0; i < headerNames.Count; i++)
                 {
                     string rawHeader = headerNames[i];
@@ -527,14 +527,13 @@ namespace Hoi4UnitHistoryGenerator
                 return [];
             }
 
-            Dictionary<string, EquipmentVariant> resultMap = new(rows.Count - 1);
-            List<EquipmentVariant> resultList = new(rows.Count - 1);
-            for (int i = 1; i < rows.Count; i++)
+            Dictionary<string, EquipmentVariant> resultMap = [];
+            List<EquipmentVariant> resultList = [];
+            while (rowIterator.MoveNext())
             {
                 EquipmentVariant equipmentVariant;
 
-                List<string> cellValues = ConvertRowToCells(rows[i], sharedStringPart, headers.Count);
-
+                List<string> cellValues = rowIterator.Current;
                 string variantName = cellValues[iVariantName];
                 if (variantName.Length == 0)
                 {
@@ -616,8 +615,8 @@ namespace Hoi4UnitHistoryGenerator
 
         private static List<Fleet> LoadFleets(SheetData sheet, SharedStringTablePart? sharedStringPart, TDir directory)
         {
-            List<Row> rows = [.. sheet.Elements<Row>()];
-            if (rows.Count == 0)
+            var rowIterator = ExcelUtils.RowIterator(sheet, sharedStringPart);
+            if (!rowIterator.MoveNext())
             {
                 return [];
             }
@@ -628,7 +627,7 @@ namespace Hoi4UnitHistoryGenerator
             int iTaskForceName = -1;
             int iShipName = -1;
             {
-                var headerNames = ConvertRowToCells(rows[0], sharedStringPart, 0);
+                var headerNames = rowIterator.Current;
                 for (int i = 0; i < headerNames.Count; i++)
                 {
                     string rawHeader = headerNames[i];
@@ -674,184 +673,185 @@ namespace Hoi4UnitHistoryGenerator
                 {
                     return [];
                 }
+            }
 
-                Dictionary<string, Fleet> fleetMap = new(rows.Count - 1);
-                List<Fleet> fleetList = new(rows.Count - 1);
+            Dictionary<string, Fleet> fleetMap = [];
+            List<Fleet> fleetList = [];
 
-                Dictionary<Fleet, Dictionary<string, TaskForce>> taskForceMap = [];
-                Dictionary<TaskForce, Dictionary<string, WarShip>> shipMap = [];
+            Dictionary<Fleet, Dictionary<string, TaskForce>> taskForceMap = [];
+            Dictionary<TaskForce, Dictionary<string, WarShip>> shipMap = [];
 
-                for (int i = 1; i < rows.Count; i++)
+            while (rowIterator.MoveNext())
+            {
+                List<string> cellValues = rowIterator.Current;
+                Fleet fleet;
+                TaskForce taskForce;
+                WarShip warShip;
+
+                string fleetName = cellValues[iFleetName];
+                if (fleetName.Length == 0)
                 {
-                    List<string> cellValues = ConvertRowToCells(rows[i], sharedStringPart, headerNames.Count);
-                    Fleet fleet;
-                    TaskForce taskForce;
-                    WarShip warShip;
-
-                    string fleetName = cellValues[iFleetName];
-                    if (fleetName.Length == 0)
+                    if (fleetList.Count == 0)
                     {
-                        if (fleetList.Count == 0)
-                        {
-                            continue;
-                        }
-                        else
-                        {
-                            fleet = fleetList.Last();
-                        }
+                        continue;
                     }
                     else
                     {
-                        var f = fleetMap.GetValueOrDefault(fleetName);
-                        if (f is null)
-                        {
-                            fleet = new();
-                            fleetList.Add(fleet);
-                        }
-                        else
-                        {
-                            fleet = f;
-                        }
+                        fleet = fleetList.Last();
                     }
-
-                    Dictionary<string, TaskForce>? taskForceMap1 = taskForceMap.GetValueOrDefault(fleet);
-                    if (taskForceMap1 is null)
+                }
+                else
+                {
+                    var f = fleetMap.GetValueOrDefault(fleetName);
+                    if (f is null)
                     {
-                        taskForceMap1 = [];
-                        taskForceMap[fleet] = taskForceMap1;
-                    }
-
-                    string taskForceName = cellValues[iTaskForceName];
-                    if (taskForceName.Length == 0)
-                    {
-                        if (fleet.TaskForces.Count == 0)
-                        {
-                            continue;
-                        }
-                        else
-                        {
-                            taskForce = fleet.TaskForces.Last();
-                        }
+                        fleet = new();
+                        fleetList.Add(fleet);
                     }
                     else
                     {
-                        var tf = taskForceMap1.GetValueOrDefault(taskForceName);
-                        if (tf is null)
-                        {
-                            taskForce = new();
-                            fleet.TaskForces.Add(taskForce);
-                        }
-                        else
-                        {
-                            taskForce = tf;
-                        }
-
-                    }
-
-                    Dictionary<string, WarShip>? shipMap1 = shipMap.GetValueOrDefault(taskForce);
-                    if (shipMap1 is null)
-                    {
-                        shipMap1 = [];
-                        shipMap[taskForce] = shipMap1;
-                    }
-
-                    string shipName = cellValues[iShipName];
-                    if (shipName.Length == 0)
-                    {
-                        if (taskForce.WarShips.Count == 0)
-                        {
-                            continue;
-                        }
-                        else
-                        {
-                            warShip = taskForce.WarShips.Last();
-                        }
-                    }
-                    else
-                    {
-                        var ship = shipMap1.GetValueOrDefault(shipName);
-                        if (ship is null)
-                        {
-                            warShip = new();
-                            taskForce.WarShips.Add(warShip);
-                        }
-                        else
-                        {
-                            warShip = ship;
-                        }
-                    }
-
-                    for (int j = 0; j < cellValues.Count; j++)
-                    {
-                        PropertyInfo? property = properties[j];
-                        if (property is null)
-                        {
-                            continue;
-                        }
-
-                        string columnValue = cellValues[j];
-                        if (columnValue.Length == 0)
-                        {
-                            continue;
-                        }
-
-                        object? obj;
-                        string propertyValue = directory.GetValueOrDefault(propertyLocalisationKeys[j]!, []).GetValueOrDefault(columnValue, columnValue);
-                        object convertedValue = Convert.ChangeType(propertyValue, property.PropertyType);
-                        if (property.DeclaringType == typeof(Fleet))
-                        {
-                            obj = fleet;
-                        }
-                        else if (property.DeclaringType == typeof(TaskForce))
-                        {
-                            obj = taskForce;
-                        }
-                        else if (property.DeclaringType == typeof(WarShip))
-                        {
-                            obj = warShip;
-                        }
-                        else
-                        {
-                            obj = null;
-                        }
-
-                        if (obj != null)
-                        {
-                            property.SetValue(obj, convertedValue);
-                        }
+                        fleet = f;
                     }
                 }
 
-                return fleetList;
+                Dictionary<string, TaskForce>? taskForceMap1 = taskForceMap.GetValueOrDefault(fleet);
+                if (taskForceMap1 is null)
+                {
+                    taskForceMap1 = [];
+                    taskForceMap[fleet] = taskForceMap1;
+                }
+
+                string taskForceName = cellValues[iTaskForceName];
+                if (taskForceName.Length == 0)
+                {
+                    if (fleet.TaskForces.Count == 0)
+                    {
+                        continue;
+                    }
+                    else
+                    {
+                        taskForce = fleet.TaskForces.Last();
+                    }
+                }
+                else
+                {
+                    var tf = taskForceMap1.GetValueOrDefault(taskForceName);
+                    if (tf is null)
+                    {
+                        taskForce = new();
+                        fleet.TaskForces.Add(taskForce);
+                    }
+                    else
+                    {
+                        taskForce = tf;
+                    }
+
+                }
+
+                Dictionary<string, WarShip>? shipMap1 = shipMap.GetValueOrDefault(taskForce);
+                if (shipMap1 is null)
+                {
+                    shipMap1 = [];
+                    shipMap[taskForce] = shipMap1;
+                }
+
+                string shipName = cellValues[iShipName];
+                if (shipName.Length == 0)
+                {
+                    if (taskForce.WarShips.Count == 0)
+                    {
+                        continue;
+                    }
+                    else
+                    {
+                        warShip = taskForce.WarShips.Last();
+                    }
+                }
+                else
+                {
+                    var ship = shipMap1.GetValueOrDefault(shipName);
+                    if (ship is null)
+                    {
+                        warShip = new();
+                        taskForce.WarShips.Add(warShip);
+                    }
+                    else
+                    {
+                        warShip = ship;
+                    }
+                }
+
+                for (int j = 0; j < cellValues.Count; j++)
+                {
+                    PropertyInfo? property = properties[j];
+                    if (property is null)
+                    {
+                        continue;
+                    }
+
+                    string columnValue = cellValues[j];
+                    if (columnValue.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    object? obj;
+                    string propertyValue = directory.GetValueOrDefault(propertyLocalisationKeys[j]!, []).GetValueOrDefault(columnValue, columnValue);
+                    object convertedValue = Convert.ChangeType(propertyValue, property.PropertyType);
+                    if (property.DeclaringType == typeof(Fleet))
+                    {
+                        obj = fleet;
+                    }
+                    else if (property.DeclaringType == typeof(TaskForce))
+                    {
+                        obj = taskForce;
+                    }
+                    else if (property.DeclaringType == typeof(WarShip))
+                    {
+                        obj = warShip;
+                    }
+                    else
+                    {
+                        obj = null;
+                    }
+
+                    if (obj != null)
+                    {
+                        property.SetValue(obj, convertedValue);
+                    }
+                }
             }
+            return fleetList;
         }
 
         private static List<AirBase> LoadAirBases(SheetData sheet, SharedStringTablePart? sharedStringPart, TDir directory)
         {
-            List<Row> rows = [.. sheet.Elements<Row>()];
-            if (rows.Count == 0)
+            var rowIterator = ExcelUtils.RowIterator(sheet, sharedStringPart);
+            if (!rowIterator.MoveNext())
             {
                 return [];
             }
 
             List<PropertyInfo?> properties = [];
             List<string?> propertyLocalisationKeys = [];
-            var headerNames = ConvertRowToCells(rows[0], sharedStringPart, 0);
-            for (int i = 0; i < headerNames.Count; i++)
             {
-                string rawHeader = headerNames[i];
-                string header = directory.GetValueOrDefault("column_name", []).GetValueOrDefault(rawHeader, rawHeader);
+                var headerNames = rowIterator.Current;
+                for (int i = 0; i < headerNames.Count; i++)
+                {
+                    string rawHeader = headerNames[i];
+                    string header = directory.GetValueOrDefault("column_name", []).GetValueOrDefault(rawHeader, rawHeader);
 
-                var property = typeof(AirWing).GetProperty(header);
-                properties.Add(property);
-                propertyLocalisationKeys.Add(BuildCategoryKey(property));
+                    var property = typeof(AirWing).GetProperty(header);
+                    properties.Add(property);
+                    propertyLocalisationKeys.Add(BuildCategoryKey(property));
+                }
             }
 
-            List<AirWing> airWings = new(rows.Count - 1);
-            for (int i = 1; i < rows.Count; i++)
+            List<AirWing> airWings = [];
+            while (rowIterator.MoveNext())
             {
                 AirWing airWing = new();
-                var columnValues = ConvertRowToCells(rows[i], sharedStringPart, 0);
+                var columnValues = rowIterator.Current;
                 for (int j = 0; j < columnValues.Count; j++)
                 {
                     if (columnValues[j].Length == 0)
@@ -908,64 +908,6 @@ namespace Hoi4UnitHistoryGenerator
             }
 
             return airBases;
-        }
-
-        private static List<string> ConvertRowToCells(Row rowData, SharedStringTablePart? sharedStringPart, int minCount)
-        {
-            List<string> cellValues = [];
-            foreach (var cell in rowData.Elements<Cell>())
-            {
-                int column = ParseColumnIdFromReference(cell.CellReference!);
-                int diff = column - cellValues.Count;
-                for (int i = 0; i < diff; i++)
-                {
-                    cellValues.Add("");
-                }
-
-                cellValues.Add(GetStringFromCell(cell, sharedStringPart));
-            }
-
-            {
-                int diff = minCount - cellValues.Count;
-                for (int i = 0; i < diff; i++)
-                {
-                    cellValues.Add("");
-                }
-            }
-
-            return cellValues;
-        }
-
-        static int ParseColumnIdFromReference(string cellReference)
-        {
-            var span = cellReference.AsSpan();
-            int column = 0;
-            for (int i = 0; i < span.Length; i++)
-            {
-                if (span[i] >= 'A' && span[i] <= 'Z')
-                {
-                    column *= 26;
-                    column += span[i] - 'A';
-                }
-                else
-                {
-                    break;
-                }
-            }
-            return column;
-        }
-
-        private static string GetStringFromCell(Cell cell, SharedStringTablePart? sharedStringPart)
-        {
-            string value = cell.CellValue?.Text ?? "";
-            if (sharedStringPart is not null && cell.DataType is not null && cell.DataType == CellValues.SharedString)
-            {
-                return sharedStringPart.SharedStringTable.ElementAt(int.Parse(value)).InnerText;
-            }
-            else
-            {
-                return value;
-            }
         }
 
         private static string? BuildCategoryKey(PropertyInfo? propertyInfo)
