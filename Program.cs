@@ -16,18 +16,18 @@ namespace Hoi4UnitHistoryGenerator
 
         static void Main()
         {
-            string[] files = Directory.GetFiles("templates", "*.xlsx");
+            TDir dictionaries = LoadDictionaries("dictionaries.xlsx");
+            string[] files = Directory.GetFiles(".", "*.xlsx");
             foreach (var item in files)
             {
-                string relativePath = Path.GetRelativePath("templates", item);
-                var match = RegTemplateFileName().Match(relativePath);
+                var match = RegTemplateFileName().Match(Path.GetFileName(item));
                 if (match.Success)
                 {
                     string countryTag = match.Groups[1].Value;
                     try
                     {
                         Console.Out.WriteLine($"Handling xlsx file: {item}");
-                        HandleXlsx(countryTag, item);
+                        HandleCountryXlsx(countryTag, item, dictionaries);
                         Console.Out.WriteLine("Success.");
                     }
                     catch (Exception ex)
@@ -38,7 +38,114 @@ namespace Hoi4UnitHistoryGenerator
             }
         }
 
-        private static void HandleXlsx(string countryTag, string filename)
+        private static TDir LoadDictionaries(string filename)
+        {
+            using var doc = SpreadsheetDocument.Open(filename, false);
+            if (doc.WorkbookPart is null)
+            {
+                Console.Error.WriteLine($"{filename} - Illegal xlsx: workbook part is missing");
+                return [];
+            }
+
+            SharedStringTablePart? sharedStringPart = doc.WorkbookPart.GetPartsOfType<SharedStringTablePart>().FirstOrDefault();
+            var workbook = doc.WorkbookPart!.Workbook;
+            if (workbook.Sheets is null)
+            {
+                Console.Error.WriteLine($"{filename} - Illegal xlsx: sheet part is missing");
+                return [];
+            }
+
+            TDir results = [];
+            foreach (var sheet in workbook.Sheets.Elements<Sheet>())
+            {
+                var id = sheet.Id;
+                WorksheetPart worksheetPart = (doc.WorkbookPart.GetPartById(sheet.Id!) as WorksheetPart)!;
+                SheetData sheetData = worksheetPart.Worksheet.Elements<SheetData>().FirstOrDefault()!;
+
+                var name = sheet.Name?.Value;
+                if (name is not null)
+                {
+                    results[name] = LoadDictionary(sheetData, sharedStringPart);
+                }
+            }
+            return results;
+        }
+
+        private static Dictionary<string, string> LoadDictionary(SheetData sheet, SharedStringTablePart? sharedStringPart)
+        {
+            List<Row> rows = [.. sheet.Elements<Row>()];
+            if (rows.Count == 0)
+            {
+                return [];
+            }
+
+            int iName = -1;
+            int iId = -1;
+
+            List<string> headers = ConvertRowToCells(rows[0], sharedStringPart, 0);
+            for (int i = 0; i < headers.Count; i++)
+            {
+                string header = headers[i];
+
+                if (header == "name")
+                {
+                    if (iName != -1)
+                        Console.Error.WriteLine("Column 'name' has already exist.");
+                    else
+                        iName = i;
+                }
+                else if (header == "id")
+                {
+                    if (iId != -1)
+                        Console.Error.WriteLine("Column 'id' has already exist.");
+                    else
+                        iId = i;
+                }
+                else
+                {
+                    Console.Error.WriteLine($"Unrecognized dictionary header [{header}]");
+                }
+            }
+
+            if (iName == -1)
+            {
+                Console.Error.WriteLine("Nessesary dictionary column 'name' is missing.");
+                return [];
+            }
+            if (iId == -1)
+            {
+                Console.Error.WriteLine("Nessesary dictionary column 'id' is missing.");
+                return [];
+            }
+
+            Dictionary<string, string> results = [];
+
+            for (int i = 1; i < rows.Count; i++)
+            {
+                List<string> cellValues = ConvertRowToCells(rows[i], sharedStringPart, headers.Count);
+
+                string name = "";
+                string id = "";
+
+                for (int j = 0; j < cellValues.Count; j++)
+                {
+                    if (iName == j)
+                    {
+                        name = cellValues[j];
+                    }
+                    if (iId == j)
+                    {
+                        id = cellValues[j];
+                    }
+                }
+
+                results[name] = id;
+            }
+
+            return results;
+        }
+
+        private static void HandleCountryXlsx(string countryTag, string filename, TDir dictionaries)
         {
             using var doc = SpreadsheetDocument.Open(filename, false);
             if (doc.WorkbookPart is null)
@@ -56,7 +163,6 @@ namespace Hoi4UnitHistoryGenerator
                 return;
             }
 
-            TDir directory = [];
             List<DivisionTemplate> divisionTemplates = [];
             List<DivisionEntity> divisionEntities = [];
             List<EquipmentVariant> armorVariants = [];
@@ -64,15 +170,6 @@ namespace Hoi4UnitHistoryGenerator
             List<EquipmentVariant> shipVariants = [];
             List<Fleet> fleets = [];
             List<AirBase> airBases = [];
-
-            SheetData? directorySheet = workbook.Sheets.Elements<Sheet>().
-                Where(sheet => "dictionary" == sheet.Name).
-                Select(sheet => (doc.WorkbookPart.GetPartById(sheet.Id!) as WorksheetPart)!.Worksheet.Elements<SheetData>().FirstOrDefault()!).
-                FirstOrDefault();
-            if (directorySheet is not null)
-            {
-                directory = LoadDictionary(directorySheet, sharedStringPart);
-            }
 
             foreach (var sheet in workbook.Sheets.Elements<Sheet>())
             {
@@ -83,31 +180,31 @@ namespace Hoi4UnitHistoryGenerator
                 var name = sheet.Name;
                 if ("division_entities" == name)
                 {
-                    divisionEntities = LoadDivisionEntities(sheetData, sharedStringPart, directory);
+                    divisionEntities = LoadDivisionEntities(sheetData, sharedStringPart, dictionaries);
                 }
                 else if ("armor_variants" == name)
                 {
-                    armorVariants = LoadEquipmentVariants(sheetData, sharedStringPart, directory);
+                    armorVariants = LoadEquipmentVariants(sheetData, sharedStringPart, dictionaries);
                 }
                 else if ("plane_variants" == name)
                 {
-                    planeVariants = LoadEquipmentVariants(sheetData, sharedStringPart, directory);
+                    planeVariants = LoadEquipmentVariants(sheetData, sharedStringPart, dictionaries);
                 }
                 else if ("ship_variants" == name)
                 {
-                    shipVariants = LoadEquipmentVariants(sheetData, sharedStringPart, directory);
+                    shipVariants = LoadEquipmentVariants(sheetData, sharedStringPart, dictionaries);
                 }
                 else if ("fleets" == name)
                 {
-                    fleets = LoadFleets(sheetData, sharedStringPart, directory);
+                    fleets = LoadFleets(sheetData, sharedStringPart, dictionaries);
                 }
                 else if ("air_wings" == name)
                 {
-                    airBases = LoadAirBases(sheetData, sharedStringPart, directory);
+                    airBases = LoadAirBases(sheetData, sharedStringPart, dictionaries);
                 }
                 else if ("division_templates" == name)
                 {
-                    divisionTemplates = LoadDivisionTemplates(sheetData, sharedStringPart, directory);
+                    divisionTemplates = LoadDivisionTemplates(sheetData, sharedStringPart, dictionaries);
                 }
             }
 
@@ -207,105 +304,6 @@ namespace Hoi4UnitHistoryGenerator
                     }
                 }
             }
-        }
-
-        private static TDir LoadDictionary(SheetData sheet, SharedStringTablePart? sharedStringPart)
-        {
-            List<Row> rows = [.. sheet.Elements<Row>()];
-            if (rows.Count == 0)
-            {
-                return [];
-            }
-
-            int iCategory = -1;
-            int iName = -1;
-            int iId = -1;
-
-            List<string> headers = ConvertRowToCells(rows[0], sharedStringPart, 0);
-            for (int i = 0; i < headers.Count; i++)
-            {
-                string header = headers[i];
-
-                if (header == "category")
-                {
-                    if (iCategory != -1)
-                        Console.Error.WriteLine("Column 'category' has already exist.");
-                    else
-                        iCategory = i;
-                }
-                else if (header == "name")
-                {
-                    if (iName != -1)
-                        Console.Error.WriteLine("Column 'name' has already exist.");
-                    else
-                        iName = i;
-                }
-                else if (header == "id")
-                {
-                    if (iId != -1)
-                        Console.Error.WriteLine("Column 'id' has already exist.");
-                    else
-                        iId = i;
-                }
-                else
-                {
-                    Console.Error.WriteLine($"Unrecognized dictionary header [{header}]");
-                }
-            }
-
-            if (iCategory == -1)
-            {
-                Console.Error.WriteLine("Nessesary dictionary column 'category' is missing.");
-                return [];
-            }
-            if (iName == -1)
-            {
-                Console.Error.WriteLine("Nessesary dictionary column 'name' is missing.");
-                return [];
-            }
-            if (iId == -1)
-            {
-                Console.Error.WriteLine("Nessesary dictionary column 'id' is missing.");
-                return [];
-            }
-
-            TDir results = [];
-
-            for (int i = 1; i < rows.Count; i++)
-            {
-                List<string> cellValues = ConvertRowToCells(rows[i], sharedStringPart, headers.Count);
-
-                string category = "";
-                string name = "";
-                string id = "";
-
-                for (int j = 0; j < cellValues.Count; j++)
-                {
-                    if (iCategory == j)
-                    {
-                        category = cellValues[j];
-                    }
-                    if (iName == j)
-                    {
-                        name = cellValues[j];
-                    }
-                    if (iId == j)
-                    {
-                        id = cellValues[j];
-                    }
-                }
-
-                var dirInCategory = results.GetValueOrDefault(category);
-                if (dirInCategory == null)
-                {
-                    dirInCategory = [];
-                    results[category] = dirInCategory;
-                }
-
-                dirInCategory[name] = id;
-            }
-
-            return results;
         }
 
         private static List<DivisionTemplate> LoadDivisionTemplates(SheetData sheet, SharedStringTablePart? sharedStringPart, TDir directory)
@@ -456,6 +454,10 @@ namespace Hoi4UnitHistoryGenerator
                 {
                     string header = directory.GetValueOrDefault("column_name", []).GetValueOrDefault(rawHeader, rawHeader);
                     var property = typeof(DivisionEntity).GetProperty(header);
+                    if (property is null)
+                    {
+                        Console.WriteLine($"[Warn] unknown property: {nameof(DivisionEntity)}.{header}");
+                    }
                     properties.Add(property);
                     propertyLocalisationKeys.Add(BuildCategoryKey(property));
                 }
@@ -476,8 +478,11 @@ namespace Hoi4UnitHistoryGenerator
                     }
 
                     var property = properties[j];
-                    string propertyValue = directory.GetValueOrDefault(propertyLocalisationKeys[j]!, []).GetValueOrDefault(cellValues[j], cellValues[j]);
-                    property?.SetValue(divisionEntity, Convert.ChangeType(propertyValue, property.PropertyType));
+                    if (property is not null)
+                    {
+                        string propertyValue = directory.GetValueOrDefault(propertyLocalisationKeys[j]!, []).GetValueOrDefault(cellValues[j], cellValues[j]);
+                        property.SetValue(divisionEntity, Convert.ChangeType(propertyValue, property.PropertyType));
+                    }
                 }
 
                 results.Add(divisionEntity);
