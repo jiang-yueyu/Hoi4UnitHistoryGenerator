@@ -681,12 +681,13 @@ namespace Hoi4UnitHistoryGenerator
             Dictionary<Fleet, Dictionary<string, TaskForce>> taskForceMap = [];
             Dictionary<TaskForce, Dictionary<string, WarShip>> shipMap = [];
 
+            int currentRowId = 1;
             while (rowIterator.MoveNext())
             {
+                currentRowId++;
                 List<string> cellValues = rowIterator.Current;
                 Fleet fleet;
                 TaskForce taskForce;
-                WarShip warShip;
 
                 string fleetName = cellValues[iFleetName];
                 if (fleetName.Length == 0)
@@ -741,12 +742,12 @@ namespace Hoi4UnitHistoryGenerator
                     {
                         taskForce = new();
                         fleet.TaskForces.Add(taskForce);
+                        taskForceMap1[taskForceName] = taskForce;
                     }
                     else
                     {
                         taskForce = tf;
                     }
-
                 }
 
                 Dictionary<string, WarShip>? shipMap1 = shipMap.GetValueOrDefault(taskForce);
@@ -759,28 +760,19 @@ namespace Hoi4UnitHistoryGenerator
                 string shipName = cellValues[iShipName];
                 if (shipName.Length == 0)
                 {
-                    if (taskForce.WarShips.Count == 0)
-                    {
-                        continue;
-                    }
-                    else
-                    {
-                        warShip = taskForce.WarShips.Last();
-                    }
+                    continue;
                 }
-                else
+
+                var ship = shipMap1.GetValueOrDefault(shipName);
+                if (ship is not null)
                 {
-                    var ship = shipMap1.GetValueOrDefault(shipName);
-                    if (ship is null)
-                    {
-                        warShip = new();
-                        taskForce.WarShips.Add(warShip);
-                    }
-                    else
-                    {
-                        warShip = ship;
-                    }
+                    Console.WriteLine($"[Warn] duplicate ship name [shipName] row {currentRowId}");
+                    continue;
                 }
+
+                WarShip warShip = new();
+                taskForce.WarShips.Add(warShip);
+                shipMap1[shipName] = warShip;
 
                 for (int j = 0; j < cellValues.Count; j++)
                 {
