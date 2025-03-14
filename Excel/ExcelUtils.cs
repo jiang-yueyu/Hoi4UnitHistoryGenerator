@@ -10,27 +10,32 @@ namespace Hoi4UnitHistoryGenerator.Excel
             return new ExcelIterator(sheet.Elements<Row>().GetEnumerator(), sharedStringPart);
         }
 
-        public static List<string> ReadRow(Row rowData, SharedStringTablePart? sharedStringPart, int minCount)
+        public static List<KeyValuePair<int, string>> ReadRow(Row rowData, SharedStringTablePart? sharedStringPart)
         {
-            List<string> cellValues = [];
+            List<KeyValuePair<int, string>> cellValues = [];
             foreach (var cell in rowData.Elements<Cell>())
             {
                 int column = ParseColumnIdFromReference(cell.CellReference!);
+                cellValues.Add(new(column, GetStringFromCell(cell, sharedStringPart)));
+            }
+            return cellValues;
+        }
+
+        public static List<string?> ReadRowToStringList(Row rowData, SharedStringTablePart? sharedStringPart)
+            => ConvertCellsToStringList(ReadRow(rowData, sharedStringPart));
+
+        public static List<string?> ConvertCellsToStringList(List<KeyValuePair<int, string>> source)
+        {
+            List<string?> cellValues = [];
+            foreach (var(column, value) in source)
+            {
                 int diff = column - cellValues.Count;
                 for (int i = 0; i < diff; i++)
                 {
-                    cellValues.Add("");
+                    cellValues.Add(null);
                 }
 
-                cellValues.Add(GetStringFromCell(cell, sharedStringPart));
-            }
-
-            {
-                int diff = minCount - cellValues.Count;
-                for (int i = 0; i < diff; i++)
-                {
-                    cellValues.Add("");
-                }
+                cellValues.Add(value);
             }
 
             return cellValues;

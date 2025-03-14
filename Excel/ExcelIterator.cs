@@ -7,18 +7,16 @@ namespace Hoi4UnitHistoryGenerator.Excel
     struct ExcelIterator(
         IEnumerator<Row> rowIterator,
         SharedStringTablePart? sharedStringTablePart
-        ) : IEnumerator<List<string>>
+        ) : IEnumerator<List<KeyValuePair<int, string>>>
     {
         private bool _IsHeaderRowReturned;
-        private int _HeaderColumnCount;
 
-        public List<string> Current {
+        public List<KeyValuePair<int, string>> Current {
             get {
-                var current = ExcelUtils.ReadRow(rowIterator.Current, sharedStringTablePart, _HeaderColumnCount);
+                var current = ExcelUtils.ReadRow(rowIterator.Current, sharedStringTablePart);
                 if (!_IsHeaderRowReturned)
                 {
                     _IsHeaderRowReturned = true;
-                    _HeaderColumnCount = current.Count;
                 }
                 return current;
             }

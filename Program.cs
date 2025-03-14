@@ -80,15 +80,13 @@ namespace Hoi4UnitHistoryGenerator
                 return [];
             }
 
-            List<string> headers = rowIterator.Current;
+            List<KeyValuePair<int, string>> headers = rowIterator.Current;
 
             int iName = -1;
             int iId = -1;
 
-            for (int i = 0; i < headers.Count; i++)
+            foreach (var (i, header) in headers)
             {
-                string header = headers[i];
-
                 if (header == "name")
                 {
                     if (iName != -1)
@@ -124,20 +122,20 @@ namespace Hoi4UnitHistoryGenerator
 
             while (rowIterator.MoveNext())
             {
-                List<string> cellValues = rowIterator.Current;
+                var cellValues = rowIterator.Current;
                 
                 string name = "";
                 string id = "";
 
-                for (int j = 0; j < cellValues.Count; j++)
+                foreach (var (j, value) in cellValues)
                 {
                     if (iName == j)
                     {
-                        name = cellValues[j];
+                        name = value;
                     }
                     if (iId == j)
                     {
-                        id = cellValues[j];
+                        id = value;
                     }
                 }
 
@@ -329,7 +327,7 @@ namespace Hoi4UnitHistoryGenerator
                 return null;
             }
             Row headerRow = iterator.Current;
-            var rawHeaders = ExcelUtils.ReadRow(headerRow, sharedStringPart, 0);
+            List<string?> rawHeaders = ExcelUtils.ReadRowToStringList(headerRow, sharedStringPart);
             if (rawHeaders.Count == 0)
             {
                 return null;
@@ -340,13 +338,13 @@ namespace Hoi4UnitHistoryGenerator
             while (iterator.MoveNext())
             {
                 Row row = iterator.Current;
-                var cellValues = ExcelUtils.ReadRow(row, sharedStringPart, rawHeaders.Count);
-                if ("!" == cellValues.FirstOrDefault())
+                var cellValues = ExcelUtils.ReadRow(row, sharedStringPart);
+                if ("!" == cellValues.FirstOrDefault().Value)
                 {
                     break;
                 }
 
-                for (int j = 0; j < cellValues.Count; j++)
+                foreach (var (j, value) in cellValues)
                 {
                     if (j >= rawHeaders.Count)
                     {
@@ -364,14 +362,19 @@ namespace Hoi4UnitHistoryGenerator
                         column = columns[j];
                     }
 
-                    column.Add(cellValues[j]);
+                    column.Add(value);
                 }
             }
 
             DivisionTemplate divisionTemplate = new();
             for (int i = 0; i < columns.Count; i++)
             {
-                string rawHeader = rawHeaders[i];
+                string? rawHeader = rawHeaders[i];
+                if (rawHeader == null)
+                {
+                    continue;
+                }
+
                 string header = directory.GetValueOrDefault("column_name", []).GetValueOrDefault(rawHeader, rawHeader);
                 if (header == "Support")
                 {
@@ -451,9 +454,14 @@ namespace Hoi4UnitHistoryGenerator
             List<PropertyInfo?> properties = [];
             List<string?> propertyLocalisationKeys = [];
             {
-                List<string> headerNames = rowIterator.Current;
+                List<string?> headerNames = ExcelUtils.ConvertCellsToStringList(rowIterator.Current);
                 foreach (var rawHeader in headerNames)
                 {
+                    if (rawHeader is null)
+                    {
+                        continue;
+                    }
+
                     string header = directory.GetValueOrDefault("column_name", []).GetValueOrDefault(rawHeader, rawHeader);
                     var property = typeof(DivisionEntity).GetProperty(header);
                     if (property is null)
@@ -469,10 +477,10 @@ namespace Hoi4UnitHistoryGenerator
             while (rowIterator.MoveNext())
             {
                 DivisionEntity divisionEntity = new();
-                List<string> cellValues = rowIterator.Current;
-                for (int j = 0; j < cellValues.Count; j++)
+                var cellValues = rowIterator.Current;
+                foreach (var (j, value) in cellValues)
                 {
-                    if (cellValues[j].Length == 0)
+                    if (value.Length == 0)
                     {
                         continue;
                     }
@@ -480,7 +488,7 @@ namespace Hoi4UnitHistoryGenerator
                     var property = properties[j];
                     if (property is not null)
                     {
-                        string propertyValue = directory.GetValueOrDefault(propertyLocalisationKeys[j]!, []).GetValueOrDefault(cellValues[j], cellValues[j]);
+                        string propertyValue = directory.GetValueOrDefault(propertyLocalisationKeys[j]!, []).GetValueOrDefault(value, value);
                         property.SetValue(divisionEntity, Convert.ChangeType(propertyValue, property.PropertyType));
                     }
                 }
@@ -504,10 +512,15 @@ namespace Hoi4UnitHistoryGenerator
             List<string> headers = [];
             int iVariantName = -1;
             {
-                List<string> headerNames = rowIterator.Current;
+                List<string?> headerNames = ExcelUtils.ConvertCellsToStringList(rowIterator.Current);
                 for (int i = 0; i < headerNames.Count; i++)
                 {
-                    string rawHeader = headerNames[i];
+                    string? rawHeader = headerNames[i];
+                    if (rawHeader is null)
+                    {
+                        continue;
+                    }
+
                     string header = directory.GetValueOrDefault("column_name", []).GetValueOrDefault(rawHeader, rawHeader);
                     headers.Add(header);
 
@@ -533,8 +546,8 @@ namespace Hoi4UnitHistoryGenerator
             {
                 EquipmentVariant equipmentVariant;
 
-                List<string> cellValues = rowIterator.Current;
-                string variantName = cellValues[iVariantName];
+                var cellValues = rowIterator.Current;
+                string variantName = cellValues.Where(pair => pair.Key == iVariantName).FirstOrDefault().Value ?? "";
                 if (variantName.Length == 0)
                 {
                     if (resultList.Count == 0)
@@ -564,9 +577,8 @@ namespace Hoi4UnitHistoryGenerator
                 string equipment = "";
                 string upgradeItem = "";
                 int upgradeLevel = 0;
-                for (int j = 0; j < cellValues.Count; j++)
+                foreach (var (j, columnValue) in cellValues)
                 {
-                    string columnValue = cellValues[j];
                     if (columnValue.Length == 0)
                     {
                         continue;
@@ -627,10 +639,15 @@ namespace Hoi4UnitHistoryGenerator
             int iTaskForceName = -1;
             int iShipName = -1;
             {
-                var headerNames = rowIterator.Current;
+                var headerNames = ExcelUtils.ConvertCellsToStringList(rowIterator.Current);
                 for (int i = 0; i < headerNames.Count; i++)
                 {
-                    string rawHeader = headerNames[i];
+                    string? rawHeader = headerNames[i];
+                    if (rawHeader is null)
+                    {
+                        continue;
+                    }
+
                     string header = directory.GetValueOrDefault("column_name", []).GetValueOrDefault(rawHeader, rawHeader);
 
                     if ("Name" == header)
@@ -685,11 +702,11 @@ namespace Hoi4UnitHistoryGenerator
             while (rowIterator.MoveNext())
             {
                 currentRowId++;
-                List<string> cellValues = rowIterator.Current;
+                var cellValues = rowIterator.Current;
                 Fleet fleet;
                 TaskForce taskForce;
 
-                string fleetName = cellValues[iFleetName];
+                string fleetName = cellValues.Where(pair => pair.Key == iFleetName).FirstOrDefault().Value ?? "";
                 if (fleetName.Length == 0)
                 {
                     if (fleetList.Count == 0)
@@ -723,7 +740,7 @@ namespace Hoi4UnitHistoryGenerator
                     taskForceMap[fleet] = taskForceMap1;
                 }
 
-                string taskForceName = cellValues[iTaskForceName];
+                string taskForceName = cellValues.Where(pair => pair.Key == iTaskForceName).FirstOrDefault().Value ?? "";
                 if (taskForceName.Length == 0)
                 {
                     if (fleet.TaskForces.Count == 0)
@@ -757,7 +774,7 @@ namespace Hoi4UnitHistoryGenerator
                     shipMap[taskForce] = shipMap1;
                 }
 
-                string shipName = cellValues[iShipName];
+                string shipName = cellValues.Where(pair => pair.Key == iShipName).FirstOrDefault().Value ?? "";
                 if (shipName.Length == 0)
                 {
                     continue;
@@ -774,7 +791,7 @@ namespace Hoi4UnitHistoryGenerator
                 taskForce.WarShips.Add(warShip);
                 shipMap1[shipName] = warShip;
 
-                for (int j = 0; j < cellValues.Count; j++)
+                foreach (var (j, columnValue) in cellValues)
                 {
                     PropertyInfo? property = properties[j];
                     if (property is null)
@@ -782,7 +799,6 @@ namespace Hoi4UnitHistoryGenerator
                         continue;
                     }
 
-                    string columnValue = cellValues[j];
                     if (columnValue.Length == 0)
                     {
                         continue;
@@ -828,10 +844,15 @@ namespace Hoi4UnitHistoryGenerator
             List<PropertyInfo?> properties = [];
             List<string?> propertyLocalisationKeys = [];
             {
-                var headerNames = rowIterator.Current;
+                var headerNames = ExcelUtils.ConvertCellsToStringList(rowIterator.Current);
                 for (int i = 0; i < headerNames.Count; i++)
                 {
-                    string rawHeader = headerNames[i];
+                    string? rawHeader = headerNames[i];
+                    if (rawHeader is null)
+                    {
+                        continue;
+                    }
+
                     string header = directory.GetValueOrDefault("column_name", []).GetValueOrDefault(rawHeader, rawHeader);
 
                     var property = typeof(AirWing).GetProperty(header);
@@ -845,9 +866,9 @@ namespace Hoi4UnitHistoryGenerator
             {
                 AirWing airWing = new();
                 var columnValues = rowIterator.Current;
-                for (int j = 0; j < columnValues.Count; j++)
+                foreach (var (j, value) in columnValues)
                 {
-                    if (columnValues[j].Length == 0)
+                    if (value.Length == 0)
                     {
                         continue;
                     }
@@ -858,7 +879,7 @@ namespace Hoi4UnitHistoryGenerator
                         continue;
                     }
 
-                    string propertyValue = directory.GetValueOrDefault(propertyLocalisationKeys[j]!, []).GetValueOrDefault(columnValues[j], columnValues[j]);
+                    string propertyValue = directory.GetValueOrDefault(propertyLocalisationKeys[j]!, []).GetValueOrDefault(value, value);
                     property.SetValue(airWing, Convert.ChangeType(propertyValue, property.PropertyType));
                 }
 
